@@ -1,0 +1,2555 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Community LLM</title>
+    <meta
+      name="description"
+      content="A private, invite-only cluster that pools your team's laptops and workstations on the LAN into hop-minimal, pipeline-parallel LLM inference engines."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ============================================================
+   TOKENS
+   ============================================================ */
+      :root {
+        --bg: #230000;
+        --bg-soft: #0b0d13;
+        --panel: #fdfdff;
+        --panel-2: #2a344e;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #e9edf5;
+        --muted: #8a93a7;
+        --muted-2: #6b7488;
+        --accent: #e34f4f;
+        --accent-2: #7c8cff;
+        --accent-3: #ffb86b;
+        --danger: #ff7a7a;
+        --radius: 16px;
+        --maxw: 1160px;
+        --mono:
+          "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans:
+          "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button {
+        font-family: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        cursor: pointer;
+      }
+      ::selection {
+        background: rgba(255, 0, 0, 0.25);
+        color: #fff;
+      }
+
+      /* ============================================================
+   BACKGROUND FX
+   ============================================================ */
+      .bg-grid {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        pointer-events: none;
+        background-image:
+          linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0.035) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.035) 1px,
+            transparent 1px
+          );
+        background-size: 64px 64px;
+        mask-image: radial-gradient(
+          ellipse 90% 60% at 50% 0%,
+          #000 30%,
+          transparent 78%
+        );
+        -webkit-mask-image: radial-gradient(
+          ellipse 90% 60% at 50% 0%,
+          #000 30%,
+          transparent 78%
+        );
+      }
+      .bg-glow {
+        position: fixed;
+        z-index: -1;
+        pointer-events: none;
+        top: -320px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1100px;
+        height: 700px;
+        background:
+          radial-gradient(
+            circle at 35% 40%,
+            rgba(79, 227, 193, 0.16),
+            transparent 55%
+          ),
+          radial-gradient(
+            circle at 65% 45%,
+            rgba(124, 140, 255, 0.16),
+            transparent 55%
+          );
+        filter: blur(40px);
+      }
+
+      /* ============================================================
+   LAYOUT
+   ============================================================ */
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      section {
+        position: relative;
+      }
+      .sec {
+        padding: 110px 0;
+      }
+      .sec-sm {
+        padding: 70px 0;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 18px;
+      }
+      .eyebrow::before {
+        content: "";
+        width: 22px;
+        height: 1px;
+        background: linear-gradient(90deg, var(--accent), transparent);
+      }
+      h2.sec-title {
+        font-size: clamp(1.75rem, 3.6vw, 2.6rem);
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+        font-weight: 700;
+        max-width: 760px;
+        margin-bottom: 18px;
+      }
+      p.sec-sub {
+        color: var(--muted);
+        font-size: 1.05rem;
+        max-width: 640px;
+        margin-bottom: 48px;
+      }
+
+      /* ============================================================
+   NAV
+   ============================================================ */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        transition:
+          background 0.3s ease,
+          border-color 0.3s ease,
+          backdrop-filter 0.3s;
+        border-bottom: 1px solid transparent;
+      }
+      .nav.scrolled {
+        background: rgba(102, 64, 255, 0);
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        border-bottom-color: var(--line);
+      }
+      .nav-inner {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 24px;
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-size: 15px;
+      }
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        position: relative;
+        flex: none;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        box-shadow: 0 0 22px rgba(79, 227, 193, 0.35);
+      }
+      .brand-mark::after {
+        content: "";
+        position: absolute;
+        inset: 7px;
+        border-radius: 3px;
+        background: var(--bg);
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+      }
+      .brand span small {
+        display: block;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        font-weight: 400;
+        color: var(--muted-2);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        line-height: 1;
+        margin-top: 2px;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+      }
+      .nav-links a {
+        font-size: 13.5px;
+        color: var(--muted);
+        font-weight: 500;
+        transition: color 0.2s;
+        position: relative;
+      }
+      .nav-links a:hover {
+        color: var(--text);
+      }
+      .nav-cta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      /* ============================================================
+   BUTTONS
+   ============================================================ */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        padding: 11px 20px;
+        border-radius: 10px;
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.25s ease,
+          background 0.2s,
+          border-color 0.2s;
+        white-space: nowrap;
+      }
+      .btn:active {
+        transform: translateY(1px) scale(0.995);
+      }
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--accent),
+          #3fc9d8 60%,
+          var(--accent-2)
+        );
+        color: #04140f;
+        box-shadow:
+          0 4px 24px rgba(79, 227, 193, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      }
+      .btn-primary:hover {
+        box-shadow:
+          0 8px 34px rgba(79, 227, 193, 0.42),
+          inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        transform: translateY(-1px);
+      }
+      .btn-ghost {
+        border: 1px solid var(--line-strong);
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .btn-ghost:hover {
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 13px;
+        border-radius: 8px;
+      }
+
+      /* ============================================================
+   HERO
+   ============================================================ */
+      .hero {
+        padding: 150px 0 70px;
+        text-align: center;
+        position: relative;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 14px 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(79, 227, 193, 0.25);
+        background: rgba(79, 227, 193, 0.06);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: 0.06em;
+        color: #9ef2dd;
+        margin-bottom: 28px;
+      }
+      .badge .pulse {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 0 rgba(79, 227, 193, 0.6);
+        animation: pulse 2.2s infinite;
+      }
+      @keyframes pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(79, 227, 193, 0.55);
+        }
+        70% {
+          box-shadow: 0 0 0 9px rgba(79, 227, 193, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(79, 227, 193, 0);
+        }
+      }
+      .hero h1 {
+        font-size: clamp(2.4rem, 6.2vw, 4.35rem);
+        line-height: 1.04;
+        letter-spacing: -0.035em;
+        font-weight: 800;
+        max-width: 900px;
+        margin: 0 auto 24px;
+      }
+      .grad {
+        background: linear-gradient(
+          100deg,
+          var(--accent) 0%,
+          #5ad4e8 40%,
+          var(--accent-2) 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .hero p.lede {
+        font-size: clamp(1rem, 1.6vw, 1.15rem);
+        color: var(--muted);
+        max-width: 660px;
+        margin: 0 auto 36px;
+        line-height: 1.65;
+      }
+      .hero-actions {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+      .hero-note {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted-2);
+        letter-spacing: 0.04em;
+      }
+
+      /* ---- Hero pipeline diagram ---- */
+      .pipe-stage {
+        margin-top: 64px;
+        position: relative;
+      }
+      .pipe {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        gap: 0;
+        padding: 22px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.035),
+          rgba(255, 255, 255, 0.008)
+        );
+        box-shadow:
+          0 30px 80px -30px rgba(0, 0, 0, 0.9),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(6px);
+      }
+      .pipe-node {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.045),
+          rgba(255, 255, 255, 0.012)
+        );
+        border: 1px solid var(--line);
+        text-align: left;
+        position: relative;
+        overflow: hidden;
+      }
+      .pipe-node::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        opacity: 0.75;
+      }
+      .pipe-node.alt::before {
+        background: linear-gradient(90deg, var(--accent-2), #c084fc);
+      }
+      .pn-head {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 10px;
+      }
+      .pn-head .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+      }
+      .pipe-node.alt .pn-head .dot {
+        background: var(--accent-2);
+        box-shadow: 0 0 8px var(--accent-2);
+      }
+      .pn-title {
+        font-size: 14.5px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin-bottom: 6px;
+      }
+      .pn-meta {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.75;
+      }
+      .pn-meta b {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .pipe-link {
+        flex: 0 0 58px;
+        position: relative;
+        align-self: center;
+        height: 2px;
+        margin: 0 6px;
+        background: linear-gradient(
+          90deg,
+          rgba(79, 227, 193, 0.12),
+          rgba(124, 140, 255, 0.45)
+        );
+        border-radius: 2px;
+      }
+      .pipe-link::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 6px;
+        height: 6px;
+        margin-top: -3px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px 1px rgba(79, 227, 193, 0.9);
+        animation: flowX 2.4s linear infinite;
+      }
+      .pipe-link:nth-of-type(2)::after {
+        animation-delay: 0.8s;
+      }
+      .pipe-link:nth-of-type(4)::after {
+        animation-delay: 1.6s;
+      }
+      @keyframes flowX {
+        0% {
+          left: -4px;
+          opacity: 0;
+        }
+        12% {
+          opacity: 1;
+        }
+        88% {
+          opacity: 1;
+        }
+        100% {
+          left: 100%;
+          opacity: 0;
+        }
+      }
+      .pipe-link .hop {
+        position: absolute;
+        top: -19px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--muted-2);
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+
+      /* ============================================================
+   STATS STRIP
+   ============================================================ */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--line);
+      }
+      .stat {
+        background: var(--bg-soft);
+        padding: 26px 22px;
+        text-align: center;
+      }
+      .stat b {
+        display: block;
+        font-size: clamp(1.5rem, 2.6vw, 2rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin-bottom: 6px;
+        background: linear-gradient(120deg, #fff, #a9b4cc);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .stat span {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      /* ============================================================
+   CARDS / GRIDS
+   ============================================================ */
+      .grid {
+        display: grid;
+        gap: 18px;
+      }
+      .g2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .g3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .g4 {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .card {
+        padding: 26px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.03),
+          rgba(255, 255, 255, 0.008)
+        );
+        transition:
+          border-color 0.25s,
+          transform 0.25s,
+          background 0.25s;
+        position: relative;
+        overflow: hidden;
+      }
+      .card:hover {
+        border-color: rgba(79, 227, 193, 0.28);
+        transform: translateY(-3px);
+        background: linear-gradient(
+          180deg,
+          rgba(79, 227, 193, 0.05),
+          rgba(255, 255, 255, 0.01)
+        );
+      }
+      .card .icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 16px;
+        border: 1px solid var(--line-strong);
+        background: rgba(255, 255, 255, 0.035);
+        color: var(--accent);
+      }
+      .card .icon svg {
+        width: 19px;
+        height: 19px;
+      }
+      .card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        margin-bottom: 8px;
+      }
+      .card p {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.62;
+      }
+      .card .tagline {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 12px;
+      }
+      .card em {
+        color: var(--accent);
+        font-style: normal;
+      }
+
+      /* ============================================================
+   SPLIT SECTION
+   ============================================================ */
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 56px;
+        align-items: center;
+      }
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .step {
+        display: flex;
+        gap: 18px;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .step:last-child {
+        border-bottom: none;
+      }
+      .step .num {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+        border: 1px solid rgba(79, 227, 193, 0.28);
+        background: rgba(79, 227, 193, 0.06);
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        flex: none;
+        margin-top: 2px;
+      }
+      .step h4 {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        letter-spacing: -0.01em;
+      }
+      .step p {
+        font-size: 13.8px;
+        color: var(--muted);
+        line-height: 1.62;
+      }
+
+      /* ---- Terminal ---- */
+      .terminal {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        overflow: hidden;
+        background: #080a0f;
+        box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.025);
+      }
+      .term-bar i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #2a3040;
+        display: block;
+      }
+      .term-bar i:nth-child(1) {
+        background: #ff5f57;
+      }
+      .term-bar i:nth-child(2) {
+        background: #febc2e;
+      }
+      .term-bar i:nth-child(3) {
+        background: #28c840;
+      }
+      .term-bar span {
+        margin-left: 10px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+      .term-body {
+        padding: 20px;
+        font-family: var(--mono);
+        font-size: 12.6px;
+        line-height: 1.85;
+        color: #c3cbd9;
+        overflow-x: auto;
+      }
+      .term-body .c {
+        color: var(--accent);
+      }
+      .term-body .k {
+        color: var(--accent-2);
+      }
+      .term-body .m {
+        color: var(--muted-2);
+      }
+      .term-body .w {
+        color: var(--accent-3);
+      }
+      .term-body .g {
+        color: #5fd68a;
+      }
+
+      /* ============================================================
+   PLANNER DEMO
+   ============================================================ */
+      .planner {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: 22px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 22px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.028),
+          rgba(255, 255, 255, 0.006)
+        );
+      }
+      .pl-left {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .pl-block h4 {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 11px;
+      }
+      .model-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .model-btn {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 11px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.018);
+        text-align: left;
+        transition: 0.2s;
+      }
+      .model-btn:hover {
+        border-color: var(--line-strong);
+        background: rgba(255, 255, 255, 0.045);
+      }
+      .model-btn.active {
+        border-color: rgba(79, 227, 193, 0.45);
+        background: rgba(79, 227, 193, 0.08);
+        box-shadow: 0 0 0 1px rgba(79, 227, 193, 0.14) inset;
+      }
+      .model-btn .mb-name {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+      .model-btn .mb-meta {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted-2);
+      }
+      .model-btn.active .mb-meta {
+        color: #8fe8d2;
+      }
+
+      .node-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .node-btn {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.014);
+        transition: 0.18s;
+        text-align: left;
+      }
+      .node-btn:hover {
+        border-color: var(--line-strong);
+      }
+      .node-btn.on {
+        border-color: rgba(124, 140, 255, 0.4);
+        background: rgba(124, 140, 255, 0.07);
+      }
+      .node-btn .chk {
+        width: 15px;
+        height: 15px;
+        border-radius: 4px;
+        border: 1.5px solid var(--muted-2);
+        flex: none;
+        display: grid;
+        place-items: center;
+        transition: 0.18s;
+      }
+      .node-btn.on .chk {
+        background: var(--accent-2);
+        border-color: var(--accent-2);
+      }
+      .node-btn.on .chk::after {
+        content: "";
+        width: 7px;
+        height: 4px;
+        border-left: 1.7px solid #0a0c12;
+        border-bottom: 1.7px solid #0a0c12;
+        transform: rotate(-45deg) translateY(-1px);
+      }
+      .node-btn .nb-name {
+        font-size: 13px;
+        font-weight: 500;
+        flex: 1;
+      }
+      .node-btn .nb-gb {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+      .node-btn.on .nb-gb {
+        color: #aab3ff;
+      }
+
+      .pl-reset {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px;
+        transition: 0.2s;
+      }
+      .pl-reset:hover {
+        color: var(--text);
+        border-color: var(--line-strong);
+      }
+
+      .pl-right {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #080a0f;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 420px;
+      }
+      .summary {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .sum-item {
+        flex: 1;
+        min-width: 96px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.022);
+      }
+      .sum-item b {
+        display: block;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      .sum-item span {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+      }
+      .sum-item.hl b {
+        color: var(--accent);
+      }
+      .sum-item.warn b {
+        color: var(--accent-3);
+      }
+
+      .pipeline {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.03),
+          rgba(255, 255, 255, 0.008)
+        );
+        animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .pp-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .pp-head .name {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .pp-head .name i {
+        font-style: normal;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--muted-2);
+        letter-spacing: 0.1em;
+        margin-right: 8px;
+      }
+      .pill {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+        border: 1px solid rgba(79, 227, 193, 0.3);
+        color: var(--accent);
+        background: rgba(79, 227, 193, 0.08);
+      }
+      .pill.zero {
+        border-color: rgba(255, 184, 107, 0.3);
+        color: var(--accent-3);
+        background: rgba(255, 184, 107, 0.08);
+      }
+      .pp-row {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        flex-wrap: wrap;
+      }
+      .stage {
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid var(--line-strong);
+        background: rgba(255, 255, 255, 0.04);
+        min-width: 0;
+      }
+      .stage .s-name {
+        font-size: 12.5px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .stage .s-lay {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted-2);
+        margin-top: 2px;
+      }
+      .stage .s-lay b {
+        color: #8fe8d2;
+        font-weight: 500;
+      }
+      .pp-arrow {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--muted-2);
+        padding: 0 9px;
+        position: relative;
+        white-space: nowrap;
+      }
+      .pp-arrow::before {
+        content: "—▸";
+        color: rgba(124, 140, 255, 0.65);
+        margin-right: 5px;
+      }
+
+      .leftovers {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+        padding-top: 4px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+      .chip {
+        padding: 4px 10px;
+        border-radius: 7px;
+        border: 1px dashed rgba(255, 255, 255, 0.16);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        text-align: center;
+        color: var(--muted-2);
+        padding: 40px 20px;
+      }
+      .empty-state svg {
+        opacity: 0.4;
+      }
+      .empty-state p {
+        font-size: 13.5px;
+        max-width: 320px;
+        line-height: 1.6;
+      }
+      .plan-note {
+        margin-top: auto;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted-2);
+        line-height: 1.8;
+      }
+
+      /* ============================================================
+   AXES COMPARISON
+   ============================================================ */
+      .axes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .axis {
+        padding: 30px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.03),
+          rgba(255, 255, 255, 0.006)
+        );
+        position: relative;
+        overflow: hidden;
+      }
+      .axis.bad {
+        border-color: rgba(255, 122, 122, 0.18);
+      }
+      .axis.good {
+        border-color: rgba(79, 227, 193, 0.28);
+      }
+      .axis .axis-label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+      }
+      .axis.bad .axis-label {
+        color: var(--danger);
+      }
+      .axis.good .axis-label {
+        color: var(--accent);
+      }
+      .axis h3 {
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+      .axis p {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.65;
+        margin-bottom: 18px;
+      }
+      .axis ul {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .axis li {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        line-height: 1.6;
+      }
+      .axis li::before {
+        content: "—";
+        color: var(--muted-2);
+        flex: none;
+      }
+      .axis.good li::before {
+        content: "+";
+        color: var(--accent);
+      }
+      .axis.bad li::before {
+        content: "×";
+        color: var(--danger);
+      }
+
+      /* ============================================================
+   NOT-BUILDING STRIP
+   ============================================================ */
+      .not-building {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 20px 24px;
+        border-radius: var(--radius);
+        border: 1px dashed var(--line-strong);
+        background: rgba(255, 255, 255, 0.015);
+      }
+      .not-building .nb-label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-3);
+        flex: none;
+      }
+      .not-building .nb-items {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted-2);
+      }
+      .not-building .nb-items span {
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+        text-decoration: line-through;
+        text-decoration-color: rgba(255, 122, 122, 0.5);
+      }
+
+      /* ============================================================
+   ROADMAP
+   ============================================================ */
+      .roadmap {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 18px;
+      }
+      .roadmap::before {
+        content: "";
+        position: absolute;
+        top: 19px;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          rgba(79, 227, 193, 0.4),
+          rgba(124, 140, 255, 0.35),
+          rgba(255, 255, 255, 0.06)
+        );
+        z-index: 0;
+      }
+      .rm {
+        position: relative;
+        z-index: 1;
+        padding-top: 0;
+      }
+      .rm-dot {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: var(--bg-soft);
+        border: 1px solid var(--line-strong);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 16px;
+      }
+      .rm.done .rm-dot {
+        border-color: rgba(79, 227, 193, 0.45);
+        color: var(--accent);
+        background: rgba(79, 227, 193, 0.08);
+      }
+      .rm.now .rm-dot {
+        border-color: rgba(124, 140, 255, 0.5);
+        color: var(--accent-2);
+        background: rgba(124, 140, 255, 0.1);
+        box-shadow: 0 0 0 4px rgba(124, 140, 255, 0.08);
+      }
+      .rm h4 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        letter-spacing: -0.01em;
+      }
+      .rm p {
+        font-size: 12.8px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .rm .wk {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--muted-2);
+        letter-spacing: 0.1em;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+
+      /* ============================================================
+   CTA
+   ============================================================ */
+      .cta-box {
+        text-align: center;
+        padding: 70px 32px;
+        border-radius: 24px;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(79, 227, 193, 0.22);
+        background:
+          radial-gradient(
+            circle at 50% 0%,
+            rgba(79, 227, 193, 0.13),
+            transparent 60%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.03),
+            rgba(255, 255, 255, 0.006)
+          );
+      }
+      .cta-box::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0.04) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.04) 1px,
+            transparent 1px
+          );
+        background-size: 40px 40px;
+        mask-image: radial-gradient(
+          ellipse 60% 70% at 50% 50%,
+          #000,
+          transparent 75%
+        );
+        -webkit-mask-image: radial-gradient(
+          ellipse 60% 70% at 50% 50%,
+          #000,
+          transparent 75%
+        );
+      }
+      .cta-box h2 {
+        font-size: clamp(1.7rem, 3.4vw, 2.4rem);
+        letter-spacing: -0.03em;
+        margin-bottom: 14px;
+        position: relative;
+      }
+      .cta-box p {
+        color: var(--muted);
+        max-width: 480px;
+        margin: 0 auto 30px;
+        position: relative;
+        font-size: 15px;
+      }
+      .cta-box .hero-actions {
+        position: relative;
+        margin-bottom: 0;
+      }
+
+      /* ============================================================
+   FOOTER
+   ============================================================ */
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 52px 0 40px;
+        margin-top: 60px;
+      }
+      .foot-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 40px;
+        flex-wrap: wrap;
+        margin-bottom: 40px;
+      }
+      .foot-brand {
+        max-width: 280px;
+      }
+      .foot-brand p {
+        font-size: 13px;
+        color: var(--muted-2);
+        margin-top: 14px;
+        line-height: 1.65;
+      }
+      .foot-cols {
+        display: flex;
+        gap: 64px;
+        flex-wrap: wrap;
+      }
+      .foot-col h5 {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 14px;
+      }
+      .foot-col a {
+        display: block;
+        font-size: 13.5px;
+        color: var(--muted);
+        margin-bottom: 9px;
+        transition: color 0.2s;
+      }
+      .foot-col a:hover {
+        color: var(--text);
+      }
+      .foot-bottom {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding-top: 26px;
+        border-top: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+
+      /* ============================================================
+   REVEAL
+   ============================================================ */
+      .reveal {
+        opacity: 0;
+        transform: translateY(18px);
+        transition:
+          opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+          transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ============================================================
+   RESPONSIVE
+   ============================================================ */
+      @media (max-width: 980px) {
+        .nav-links {
+          display: none;
+        }
+        .g4 {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .g3 {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .split {
+          grid-template-columns: 1fr;
+          gap: 36px;
+        }
+        .planner {
+          grid-template-columns: 1fr;
+        }
+        .axes {
+          grid-template-columns: 1fr;
+        }
+        .roadmap {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .roadmap::before {
+          display: none;
+        }
+      }
+      @media (max-width: 820px) {
+        .pipe {
+          flex-direction: column;
+          gap: 0;
+          align-items: stretch;
+        }
+        .pipe-link {
+          width: 2px;
+          height: 34px;
+          flex: 0 0 34px;
+          margin: 0 auto;
+          background: linear-gradient(
+            180deg,
+            rgba(79, 227, 193, 0.12),
+            rgba(124, 140, 255, 0.45)
+          );
+        }
+        .pipe-link::after {
+          left: 50%;
+          top: 0;
+          margin-left: -3px;
+          margin-top: 0;
+          animation: flowY 2.4s linear infinite;
+        }
+        .pipe-link .hop {
+          display: none;
+        }
+        @keyframes flowY {
+          0% {
+            top: -4px;
+            opacity: 0;
+          }
+          12% {
+            opacity: 1;
+          }
+          88% {
+            opacity: 1;
+          }
+          100% {
+            top: 100%;
+            opacity: 0;
+          }
+        }
+      }
+      @media (max-width: 720px) {
+        .sec {
+          padding: 74px 0;
+        }
+        .hero {
+          padding: 120px 0 50px;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .g2,
+        .g3,
+        .g4 {
+          grid-template-columns: 1fr;
+        }
+        .roadmap {
+          grid-template-columns: 1fr;
+        }
+        .foot-cols {
+          gap: 36px;
+        }
+        .term-body {
+          font-size: 11px;
+        }
+        .planner {
+          padding: 16px;
+        }
+        .pl-right {
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+
+    <!-- ==================== NAV ==================== -->
+    <header class="nav" id="nav">
+      <div class="nav-inner">
+        <a class="brand" href="#top">
+          <div class="brand-mark"></div>
+          <span>Community GPU Pool<small>Private LAN cluster</small></span>
+        </a>
+        <nav class="nav-links">
+          <a href="#problem">Problem</a>
+          <a href="#how">Architecture</a>
+          <a href="#planner">Planner</a>
+          <a href="#features">Features</a>
+          <a href="#roadmap">Roadmap</a>
+        </nav>
+        <div class="nav-cta">
+          <a href="#how" class="btn btn-ghost btn-sm">Read the spec</a>
+          <a href="#cta" class="btn btn-primary btn-sm">Request invite</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ==================== HERO ==================== -->
+      <section class="hero">
+        <div class="wrap">
+          <div class="badge">
+            <span class="pulse"></span> Invite-only · LAN only · v0.1 in
+            development
+          </div>
+          <h1>
+            Every GPU in the room.<br /><span class="grad"
+              >One inference engine.</span
+            >
+          </h1>
+          <p class="lede">
+            Community GPU Pool turns a team's gaming laptops, MacBooks, and
+            Linux workstations into a private, hop-minimal, pipeline-parallel
+            LLM cluster — on the network you already have. No per-token API
+            bills. No new hardware.
+          </p>
+          <div class="hero-actions">
+            <a href="#cta" class="btn btn-primary">Request an invite</a>
+            <a href="#how" class="btn btn-ghost">See the architecture ↓</a>
+          </div>
+          <p class="hero-note">
+            PyTorch · llama.cpp · MLX — wired Ethernet only
+          </p>
+
+          <!-- Pipeline diagram -->
+          <div class="pipe-stage reveal">
+            <div class="pipe">
+              <div class="pipe-node">
+                <div class="pn-head">
+                  <span class="dot"></span>Node A · coordinator
+                </div>
+                <div class="pn-title">Draft + stage 0</div>
+                <div class="pn-meta">
+                  Llama&nbsp;1B draft · <b>0 hops</b><br />layers <b>0 – 11</b>
+                </div>
+              </div>
+              <div class="pipe-link"><span class="hop">hop</span></div>
+              <div class="pipe-node alt">
+                <div class="pn-head">
+                  <span class="dot"></span>Node B · worker
+                </div>
+                <div class="pn-title">Stage 1</div>
+                <div class="pn-meta">
+                  prealloc KV · <b>no draft</b><br />layers <b>12 – 23</b>
+                </div>
+              </div>
+              <div class="pipe-link"><span class="hop">hop</span></div>
+              <div class="pipe-node alt">
+                <div class="pn-head">
+                  <span class="dot"></span>Node C · worker
+                </div>
+                <div class="pn-title">Stage 2 · last</div>
+                <div class="pn-meta">
+                  returns <b>argmax only</b><br />layers <b>24 – 31</b> +
+                  lm_head
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== STATS ==================== -->
+      <section class="sec-sm">
+        <div class="wrap">
+          <div class="stats reveal">
+            <div class="stat"><b>4–7×</b><span>Fewer round-trips</span></div>
+            <div class="stat"><b>0 hops</b><span>To add capacity</span></div>
+            <div class="stat">
+              <b>1 prefill</b><span>To recover a node</span>
+            </div>
+            <div class="stat"><b>≈460 KB</b><span>Payload per hop</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== PROBLEM ==================== -->
+      <section class="sec" id="problem">
+        <div class="wrap">
+          <div class="reveal">
+            <div class="eyebrow">The problem</div>
+            <h2 class="sec-title">
+              The obstacles are on the network side, not the compute side.
+            </h2>
+            <p class="sec-sub">
+              Four machines on one desk already hold more VRAM than the model
+              needs. Getting them to cooperate is the hard part — and it has
+              nothing to do with FLOPs.
+            </p>
+          </div>
+
+          <div class="grid g4">
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 2v6" />
+                  <circle cx="12" cy="14" r="6" />
+                  <path d="M12 20v2" />
+                </svg>
+              </div>
+              <div class="tagline">01 — Latency</div>
+              <h3>Every layer boundary is a hop</h3>
+              <p>
+                Every token traverses every hop. Naive layer splitting on a LAN
+                destroys interactive latency before it ever helps throughput.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 17V9" />
+                  <path d="M8 17V5" />
+                  <path d="M13 17v-6" />
+                  <path d="M18 17V7" />
+                  <path d="M2 20h20" />
+                </svg>
+              </div>
+              <div class="tagline">02 — Heterogeneity</div>
+              <h3>VRAM varies 4–10×</h3>
+              <p>
+                A 4090, an M3 Max, and a 1660 Ti are not peers. Even splitting
+                is the worst possible packing for a heterogeneous pool.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 20V10" />
+                  <path d="M10 20V4" />
+                  <path d="M16 20v-8" />
+                  <path d="M22 20V8" />
+                </svg>
+              </div>
+              <div class="tagline">03 — Scale-out</div>
+              <h3>Adding nodes makes it slower</h3>
+              <p>
+                In a naive pipeline, every new node is a permanent extra hop.
+                The cluster gets bigger and every request gets slower, forever.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M18.4 6.6a4.5 4.5 0 0 0-6.4 0L12 6.6l-.1-.1a4.5 4.5 0 1 0-6.4 6.4L12 19.4l6.4-6.5a4.5 4.5 0 0 0 0-6.3z"
+                  />
+                </svg>
+              </div>
+              <div class="tagline">04 — Disconnection</div>
+              <h3>Laptops leave the building</h3>
+              <p>
+                A lid closes, a Wi-Fi lease expires, a student walks out. The
+                system must survive losing any node without losing a single
+                committed token.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== HOW IT WORKS ==================== -->
+      <section class="sec" id="how">
+        <div class="wrap">
+          <div class="split">
+            <div class="reveal">
+              <div class="eyebrow">The architecture</div>
+              <h2 class="sec-title">
+                Treat round-trip cost as the scarce resource.
+              </h2>
+              <p class="sec-sub" style="margin-bottom: 8px">
+                Two nodes used well (1 hop) beats four nodes evenly split (3
+                hops). Every design decision below follows from that single
+                line.
+              </p>
+
+              <div class="steps">
+                <div class="step">
+                  <div class="num">01</div>
+                  <div>
+                    <h4>Hop-minimal packing</h4>
+                    <p>
+                      Greedily fill the strongest node first, spill the
+                      remainder to the next strongest. If it fits on one node,
+                      hops = 0 and the scheduler serves locally.
+                    </p>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="num">02</div>
+                  <div>
+                    <h4>Speculative decoding, locally</h4>
+                    <p>
+                      A tiny 1B draft model on the coordinator proposes k = 4–6
+                      tokens at zero network cost. The full pipeline verifies
+                      all of them in a single traversal.
+                    </p>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="num">03</div>
+                  <div>
+                    <h4>Scale by replication, not depth</h4>
+                    <p>
+                      More nodes become more independent pipelines behind the
+                      router — not a longer chain. Depth is reserved for models
+                      that literally cannot fit any other way.
+                    </p>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="num">04</div>
+                  <div>
+                    <h4>One committed token log</h4>
+                    <p>
+                      The coordinator holds every committed token for every
+                      sequence. Recovery and migration are just a re-prefill of
+                      that log — never a restart.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="reveal">
+              <div class="terminal">
+                <div class="term-bar">
+                  <i></i><i></i><i></i><span>admin — plan dry-run</span>
+                </div>
+                <div class="term-body">
+                  <span class="m">$</span> curl
+                  <span class="k">/admin/plan?model=llama3-70b</span>
+                  <span class="m"> # pure function — no side effects</span>
+                  <span class="c">plan</span>(nodes=<span class="w">6</span>,
+                  model=<span class="w">llama3-70b</span>)
+                  <span class="m"> pipelines:</span>
+                  - stages: [<span class="g">MacBook-Pro</span>,
+                  <span class="g">Workstation</span>] hops:
+                  <span class="w">1</span> layers: <span class="w">0–41</span> /
+                  <span class="w">80</span> - stages: [<span class="g"
+                    >Linux-box</span
+                  >, <span class="g">Gaming-laptop</span>] hops:
+                  <span class="w">1</span> layers: <span class="w">0–44</span> /
+                  <span class="w">80</span>
+                  <span class="m"> leftovers:</span> [MacBook-Air, Old-laptop] →
+                  role: <span class="k">draft</span> |
+                  <span class="k">spare</span>
+                  <span class="m">
+                    # plan() is pure. rollback is just another call.</span
+                  >
+                </div>
+              </div>
+
+              <div class="terminal" style="margin-top: 18px">
+                <div class="term-bar">
+                  <i></i><i></i><i></i><span>iteration loop — decode step</span>
+                </div>
+                <div class="term-body">
+                  <span class="c">draft</span> → k=<span class="w">6</span>
+                  candidates <span class="m">(local, 0 hops)</span>
+                  <span class="c">forward</span> →
+                  <span class="w">7</span> positions /
+                  <span class="w">1</span> traversal
+                  <span class="c">return</span> → argmax only
+                  <span class="m">(224 B, not 14 MB)</span>
+                  <span class="c">commit</span> → j+1 tokens
+                  <span class="m">(accept prefix)</span>
+                  <span class="c">truncate</span> → KV rollback
+                  <span class="m">(never recompute)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== INTERACTIVE PLANNER ==================== -->
+      <section class="sec" id="planner">
+        <div class="wrap">
+          <div class="reveal">
+            <div class="eyebrow">Live demo</div>
+            <h2 class="sec-title">Play with the planner.</h2>
+            <p class="sec-sub">
+              This is a real port of
+              <code
+                style="
+                  font-family: var(--mono);
+                  color: var(--accent);
+                  font-size: 0.9em;
+                "
+                >plan(nodes, model)</code
+              >
+              — the same pure, strongest-first greedy packer that runs on the
+              coordinator. Toggle nodes, change the model, watch hops happen.
+            </p>
+          </div>
+
+          <div class="planner reveal">
+            <!-- Controls -->
+            <div class="pl-left">
+              <div class="pl-block">
+                <h4>Target model</h4>
+                <div class="model-list" id="modelList"></div>
+              </div>
+              <div class="pl-block">
+                <h4>Node pool</h4>
+                <div class="node-list" id="nodeList"></div>
+              </div>
+              <button class="pl-reset" id="resetBtn">
+                ↺ reset to defaults
+              </button>
+            </div>
+
+            <!-- Output -->
+            <div class="pl-right" id="plOut"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== AXES ==================== -->
+      <section class="sec" id="axes">
+        <div class="wrap">
+          <div class="reveal">
+            <div class="eyebrow">The thesis</div>
+            <h2 class="sec-title">Two axes, opposite trades.</h2>
+            <p class="sec-sub">
+              The first question on node join is never "how do we reshard?" It
+              is: do we need capacity, or throughput?
+            </p>
+          </div>
+
+          <div class="axes">
+            <div class="axis bad reveal">
+              <div class="axis-label">Axis 1 — Depth (sharding)</div>
+              <h3>Split layers across more nodes</h3>
+              <p>
+                You get more VRAM for a bigger model. You pay for it on every
+                single token, for every single request, forever.
+              </p>
+              <ul>
+                <li>+1 hop per node, permanently</li>
+                <li>Bigger model fits</li>
+                <li>Iteration time = slowest stage</li>
+                <li>Only when the model fits no other way</li>
+              </ul>
+            </div>
+
+            <div class="axis good reveal">
+              <div class="axis-label">Axis 2 — Replication (default)</div>
+              <h3>Duplicate the whole pipeline</h3>
+              <p>
+                You get near-linear throughput for the cost of one more copy of
+                the weights. The router sends each request to the shorter queue.
+              </p>
+              <ul>
+                <li>Zero additional hops</li>
+                <li>~Linear throughput gain</li>
+                <li>Isolated failure domains</li>
+                <li>The default outcome of plan()</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== FEATURES ==================== -->
+      <section class="sec" id="features">
+        <div class="wrap">
+          <div class="reveal">
+            <div class="eyebrow">Under the hood</div>
+            <h2 class="sec-title">
+              Small enough to read. Careful enough to trust.
+            </h2>
+            <p class="sec-sub">
+              Every subsystem is deliberately the cheapest thing that is still
+              correct at team scale.
+            </p>
+          </div>
+
+          <div class="grid g3">
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                  <path d="M14 17.5h7" />
+                </svg>
+              </div>
+              <h3>Continuous batching</h3>
+              <p>
+                Requests from the whole team are queued and processed
+                concurrently. While node B computes user X's token, node A
+                computes user Y's. Admission is bounded by the tightest stage's
+                KV headroom.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />
+                </svg>
+              </div>
+              <h3>Speculative decoding</h3>
+              <p>
+                A local 1B draft proposes k tokens with zero network cost.
+                Verification is memory-bandwidth-bound, so checking 6 tokens
+                costs ~1.3× checking 1 — one round-trip, 4–6 committed tokens.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 3v18" />
+                  <path d="M5 8l7-5 7 5" />
+                  <path d="M5 16l7 5 7-5" />
+                </svg>
+              </div>
+              <h3>Argmax-only return</h3>
+              <p>
+                The last stage returns argmax, not logits. For a 128k vocab
+                that's 224 bytes instead of 14 MB per iteration — a ~60,000×
+                reduction on the return path. Greedy verification needs nothing
+                more.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+              </div>
+              <h3>Token-log recovery</h3>
+              <p>
+                No committed token ever lives only on a worker. When a node
+                dies, survivors evict and reload their new ranges, then
+                re-prefill each sequence's committed log. Seconds at 8k context.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 7h16" />
+                  <path d="M4 12h10" />
+                  <path d="M4 17h6" />
+                  <circle cx="19" cy="16" r="3" />
+                </svg>
+              </div>
+              <h3>A pure planner</h3>
+              <p>
+                <code
+                  style="
+                    font-family: var(--mono);
+                    color: var(--accent);
+                    font-size: 0.88em;
+                  "
+                  >plan()</code
+                >
+                is a side-effect-free function. Rollback, dry-run, and join
+                policy all fall out of that one property — there is no state to
+                unwind.
+              </p>
+            </div>
+
+            <div class="card reveal">
+              <div class="icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-9-9" />
+                  <path d="M21 3v6h-6" />
+                </svg>
+              </div>
+              <h3>Drain-then-form</h3>
+              <p>
+                A LIVE pipeline is never mutated. Reconfiguration means drain,
+                wait for zero in-flight, plan over freed nodes, then warm. Live
+                pipelines stay live the whole time.
+              </p>
+            </div>
+          </div>
+
+          <div class="not-building reveal" style="margin-top: 26px">
+            <span class="nb-label">Deliberately not building</span>
+            <div class="nb-items">
+              <span>tensor parallelism</span>
+              <span>KV offload to disk</span>
+              <span>RDMA / GPUDirect</span>
+              <span>WAN federation</span>
+              <span>mDNS discovery</span>
+              <span>custom kernels</span>
+              <span>eviction / preemption</span>
+              <span>sampling-based speculation</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ROADMAP ==================== -->
+      <section class="sec" id="roadmap">
+        <div class="wrap">
+          <div class="reveal">
+            <div class="eyebrow">Roadmap</div>
+            <h2 class="sec-title">Twelve weeks to a working pool.</h2>
+            <p class="sec-sub">
+              The pipeline abstraction lands at week 9 — after speculative
+              decoding already works on one pipeline. Then the refactor wraps
+              working code instead of debugging a design.
+            </p>
+          </div>
+
+          <div class="roadmap">
+            <div class="rm done reveal">
+              <div class="rm-dot">W1</div>
+              <div class="wk">Weeks 1–2</div>
+              <h4>Transport + registry</h4>
+              <p>
+                gRPC forward(), zero-copy tensors, invite-token enrollment,
+                heartbeat.
+              </p>
+            </div>
+            <div class="rm done reveal">
+              <div class="rm-dot">W3</div>
+              <div class="wk">Weeks 3–4</div>
+              <h4>Single pipeline</h4>
+              <p>
+                greedy_pack, layer sharding, KV buffers, truncate/evict,
+                per-stage timing logs.
+              </p>
+            </div>
+            <div class="rm now reveal">
+              <div class="rm-dot">W5</div>
+              <div class="wk">Weeks 5–6</div>
+              <h4>Speculative decoding</h4>
+              <p>
+                Local draft, k-curve measurement, acceptance rate, lm_head
+                profiling.
+              </p>
+            </div>
+            <div class="rm reveal">
+              <div class="rm-dot">W7</div>
+              <div class="wk">Weeks 7–12</div>
+              <h4>Replication + migration</h4>
+              <p>
+                Router, planner, drain-then-form, cross-pipeline recovery, admin
+                API.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== CTA ==================== -->
+      <section class="sec" id="cta">
+        <div class="wrap">
+          <div class="cta-box reveal">
+            <div class="badge">
+              <span class="pulse"></span> Invite-only · v0.1 in development
+            </div>
+            <h2>Your team already owns the hardware.</h2>
+            <p>
+              Join the private beta and stop paying per token for models your
+              own machines could serve.
+            </p>
+            <div class="hero-actions">
+              <a href="#" class="btn btn-primary" onclick="return false;"
+                >Request an invite</a
+              >
+              <a href="#planner" class="btn btn-ghost">Try the planner</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer>
+      <div class="wrap">
+        <div class="foot-top">
+          <div class="foot-brand">
+            <a class="brand" href="#top">
+              <div class="brand-mark"></div>
+              <span>Community GPU Pool<small>Private LAN cluster</small></span>
+            </a>
+            <p>
+              A hop-minimal, pipeline-parallel LLM inference pool for small
+              teams. Built for the LAN you already have.
+            </p>
+          </div>
+          <div class="foot-cols">
+            <div class="foot-col">
+              <h5>Product</h5>
+              <a href="#how">Architecture</a>
+              <a href="#planner">Planner</a>
+              <a href="#features">Features</a>
+              <a href="#roadmap">Roadmap</a>
+            </div>
+            <!-- <div class="foot-col"> -->
+            <!-- <h5>Spec</h5> -->
+            <!-- <a href="#problem">Problem statement</a> -->
+            <!-- <a href="#axes">Scaling model</a> -->
+            <!-- <a href="#features">Design decisions</a> -->
+            <!-- <a href="#">Admin API</a> -->
+            <!-- </div> -->
+            <div class="foot-col">
+              <h5>Project</h5>
+              <a href="https://github.com/shre0079/Community_LLM">GitHub</a>
+              <!-- <a href="#">Design log</a> -->
+              <!-- <a href="#">Benchmarks</a> -->
+              <a href="https://www.linkedin.com/in/smish9/">Contact</a>
+            </div>
+          </div>
+        </div>
+        <div class="foot-bottom">
+          <span>© 2026 Community GPU Pool · private beta</span>
+          <span>Built on a LAN. Runs on your LAN.</span>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      /* ============================================================
+   1. NAV SCROLL STATE
+   ============================================================ */
+      const nav = document.getElementById("nav");
+      const onScroll = () =>
+        nav.classList.toggle("scrolled", window.scrollY > 12);
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      /* ============================================================
+   2. SCROLL REVEAL
+   ============================================================ */
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e, i) => {
+            if (e.isIntersecting) {
+              // small stagger within a group
+              const delay = Array.from(
+                e.target.parentElement?.children || [],
+              ).indexOf(e.target);
+              setTimeout(
+                () => e.target.classList.add("in"),
+                Math.min(delay, 4) * 70,
+              );
+              io.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: "0px 0px -60px 0px" },
+      );
+
+      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+      /* ============================================================
+   3. THE PLANNER
+   ------------------------------------------------------------
+   A direct JS port of greedy_pack() / plan() from the spec.
+   Everything below is pure — no side effects, same as the real
+   implementation. That's what makes the demo honest.
+   ============================================================ */
+
+      const KV_FRAC = 0.25; // reserve for KV cache + activations + fragmentation
+      const DRAFT_GB = 1.0; // stage 0 also hosts the coordinator + draft model
+
+      const MODELS = {
+        "llama3-8b": {
+          name: "Llama 3 8B",
+          weightGb: 16,
+          layers: 32,
+          note: "fp16",
+        },
+        "llama3-13b": {
+          name: "Llama 3 13B",
+          weightGb: 26,
+          layers: 40,
+          note: "fp16",
+        },
+        "llama3-70b": {
+          name: "Llama 3 70B",
+          weightGb: 40,
+          layers: 80,
+          note: "Q4_K_M",
+        },
+      };
+
+      const NODES = [
+        { id: "mb1", name: "MacBook Pro", spec: "M3 Max · 36 GB", gb: 36 },
+        { id: "ws1", name: "Workstation", spec: "RTX 4090 · 24 GB", gb: 24 },
+        { id: "lnx1", name: "Linux box", spec: "RTX 3090 · 24 GB", gb: 24 },
+        { id: "mb2", name: "MacBook Air", spec: "M2 · 16 GB", gb: 16 },
+        { id: "lap1", name: "Gaming laptop", spec: "RTX 4070 · 12 GB", gb: 12 },
+        { id: "lap2", name: "Old laptop", spec: "GTX 1660 · 6 GB", gb: 6 },
+      ];
+
+      const DEFAULT_MODEL = "llama3-8b";
+      const DEFAULT_NODES = ["mb1", "ws1", "lap1", "mb2"];
+
+      let state = {
+        model: DEFAULT_MODEL,
+        active: new Set(DEFAULT_NODES),
+      };
+
+      /* ---------- pure core ---------- */
+
+      function greedyPack(nodes, model, kvFrac = KV_FRAC, draftGb = DRAFT_GB) {
+        const sorted = [...nodes].sort((a, b) => b.gb - a.gb);
+        const layerGb = model.weightGb / model.layers;
+        let remaining = model.layers;
+        const stages = [];
+        let first = true;
+
+        for (const n of sorted) {
+          let usable = n.gb * (1 - kvFrac);
+          if (first) usable -= draftGb; // stage 0 hosts coordinator + draft
+          if (usable <= 0) continue;
+
+          const take = Math.min(Math.floor(usable / layerGb), remaining);
+          if (take <= 0) continue;
+
+          stages.push({
+            node: n,
+            start: model.layers - remaining,
+            count: take,
+          });
+          remaining -= take;
+          first = false;
+          if (remaining === 0) break;
+        }
+
+        return remaining > 0 ? null : stages; // null => does not fit
+      }
+
+      function plan(nodes, model) {
+        let avail = [...nodes].sort((a, b) => b.gb - a.gb);
+        const pipelines = [];
+
+        while (true) {
+          const stages = greedyPack(avail, model);
+          if (!stages) break;
+          pipelines.push(stages);
+          const used = new Set(stages.map((s) => s.node.id));
+          avail = avail.filter((n) => !used.has(n.id));
+        }
+
+        return { pipelines, leftovers: avail };
+      }
+
+      /* ---------- rendering ---------- */
+
+      const modelList = document.getElementById("modelList");
+      const nodeList = document.getElementById("nodeList");
+      const plOut = document.getElementById("plOut");
+      const resetBtn = document.getElementById("resetBtn");
+
+      function buildControls() {
+        // models
+        modelList.innerHTML = Object.entries(MODELS)
+          .map(
+            ([id, m]) => `
+    <button class="model-btn ${id === state.model ? "active" : ""}" data-model="${id}">
+      <span class="mb-name">${m.name}</span>
+      <span class="mb-meta">${m.weightGb} GB · ${m.layers}L · ${m.note}</span>
+    </button>
+  `,
+          )
+          .join("");
+
+        // nodes
+        nodeList.innerHTML = NODES.map(
+          (n) => `
+    <button class="node-btn ${state.active.has(n.id) ? "on" : ""}" data-node="${n.id}">
+      <span class="chk"></span>
+      <span class="nb-name">${n.name}</span>
+      <span class="nb-gb">${n.gb} GB</span>
+    </button>
+  `,
+        ).join("");
+      }
+
+      function render() {
+        const model = MODELS[state.model];
+        const selected = NODES.filter((n) => state.active.has(n.id));
+        const { pipelines, leftovers } = plan(selected, model);
+
+        const totalHops = pipelines.reduce((s, p) => s + (p.length - 1), 0);
+
+        let html = `
+    <div class="summary">
+      <div class="sum-item hl"><b>${pipelines.length}</b><span>pipelines</span></div>
+      <div class="sum-item"><b>${totalHops}</b><span>total hops</span></div>
+      <div class="sum-item ${leftovers.length ? "warn" : ""}"><b>${leftovers.length}</b><span>leftover</span></div>
+      <div class="sum-item"><b>${selected.length}</b><span>nodes used</span></div>
+    </div>
+  `;
+
+        if (!selected.length) {
+          html += `
+      <div class="empty-state">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+        <p>Select at least one node to run the planner.</p>
+      </div>
+    `;
+          plOut.innerHTML = html;
+          return;
+        }
+
+        if (!pipelines.length) {
+          html += `
+      <div class="empty-state">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <p><strong>${model.name}</strong> does not fit the selected nodes.<br>
+        In the real system, requests queue until a node joins and the planner re-forms.</p>
+      </div>
+    `;
+          plOut.innerHTML = html;
+          return;
+        }
+
+        // pipelines
+        pipelines.forEach((stages, i) => {
+          const hops = stages.length - 1;
+          const label = String.fromCharCode(65 + i); // A, B, C...
+          html += `
+      <div class="pipeline" style="animation-delay:${i * 80}ms">
+        <div class="pp-head">
+          <span class="name"><i>PIPELINE ${label}</i>${stages.map((s) => s.node.name).join(" → ")}</span>
+          <span class="pill ${hops === 0 ? "zero" : ""}">
+            ${hops === 0 ? "0 hops · local" : hops + " hop" + (hops > 1 ? "s" : "")}
+          </span>
+        </div>
+        <div class="pp-row">
+          ${stages
+            .map(
+              (s, k) => `
+            ${k > 0 ? '<span class="pp-arrow">' + "" + "</span>" : ""}
+            <div class="stage">
+              <div class="s-name">${s.node.name}</div>
+              <div class="s-lay">layers <b>${s.start}–${s.start + s.count - 1}</b></div>
+            </div>
+          `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+        });
+
+        // leftovers
+        if (leftovers.length) {
+          html += `
+      <div class="leftovers">
+        <span>leftover →</span>
+        ${leftovers.map((n) => `<span class="chip">${n.name} · draft / spare</span>`).join("")}
+      </div>
+    `;
+        }
+
+        html += `
+    <div class="plan-note">
+      greedy_pack · strongest-first · kv_frac=${KV_FRAC} · draft=${DRAFT_GB.toFixed(1)} GB on stage 0<br>
+      layer size = ${(model.weightGb / model.layers).toFixed(3)} GB · ${model.layers} layers total
+    </div>
+  `;
+
+        plOut.innerHTML = html;
+      }
+
+      /* ---------- events ---------- */
+
+      modelList.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-model]");
+        if (!btn) return;
+        state.model = btn.dataset.model;
+        buildControls();
+        render();
+      });
+
+      nodeList.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-node]");
+        if (!btn) return;
+        const id = btn.dataset.node;
+        state.active.has(id) ? state.active.delete(id) : state.active.add(id);
+        buildControls();
+        render();
+      });
+
+      resetBtn.addEventListener("click", () => {
+        state = { model: DEFAULT_MODEL, active: new Set(DEFAULT_NODES) };
+        buildControls();
+        render();
+      });
+
+      /* ---------- boot ---------- */
+      buildControls();
+      render();
+    </script>
+  </body>
+</html>
